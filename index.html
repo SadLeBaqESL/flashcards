@@ -1,120 +1,174 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Custom Vocabulary Flashcards</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 2em; }
-    textarea { width: 100%; height: 120px; margin-bottom: 1em; }
-    .flashcard { border: 1px solid #ccc; padding: 2em; text-align: center; font-size: 1.5em; margin: 1em 0; cursor: pointer; }
-    .controls { margin-top: 1em; }
-    .marked { background-color: #fff3cd; }
-    .hidden { display: none; }
-    .star { cursor: pointer; font-size: 1.5em; color: gold; margin-left: 10px; }
-  </style>
-</head>
-<body>
-  <h1>Vocabulary Flashcards</h1>
-  <p>Paste your terms and definitions below (one per line, separated by a comma):</p>
-  <textarea id="inputArea" placeholder="run,to move quickly on foot"></textarea>
+<p><strong>How to use:</strong><br>
+&bull; To share your flashcard set, click "Share This Set" — the app will copy a special URL to your clipboard. Send that link to students so they can open the app with the set already loaded!<br><br>
+&bull; Click the flashcard to flip between term and definition<br>
+&bull; Mark difficult cards by clicking the star<br>
+&bull; <kbd>→</kbd> Next card &nbsp;&nbsp;&bull; <kbd>←</kbd> Previous card &nbsp;&nbsp;&bull; <kbd>Spacebar</kbd> Flip card</p>
+
+<p><strong>Keyboard shortcuts:</strong><br>
+&bull; <kbd>→</kbd> Next card &nbsp;&nbsp;&bull; <kbd>←</kbd> Previous card &nbsp;&nbsp;&bull; <kbd>Spacebar</kbd> Flip card</p>
+
+<textarea id="inputArea" placeholder="run,to move quickly on foot"></textarea>
+
   <input type="file" id="csvFile" accept=".csv" />
   <br><br>
   <button onclick="loadFlashcards()">Start Flashcards</button>
   <div class="controls">
+    <button onclick="generateShareableLink()">Share This Set</button>
     <button onclick="toggleSide()">Toggle Term/Definition</button>
     <button onclick="shuffleDeck()">Shuffle Deck</button>
   </div>
   <div id="flashcard" class="flashcard hidden" onclick="flipCard()"></div>
+  <p id="cardCounter"></p>
+  <div class="nav-buttons">
+    <button onclick="resetSession()">🔄 Reset</button>
+    <button onclick="prevCard()">&larr; Previous</button>
+    <button onclick="nextCard()">Next &rarr;</button>
+  </div>
   <script>
     let flashcards = [];
+let historyStack = [];
     let currentIndex = 0;
-    let showingDefinition = true;
-    let markedSet = new Set();
     let isShowing = 'definition';
+    let markedSet = new Set();
 
-    document.getElementById('csvFile').addEventListener('change', function(e) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const text = e.target.result.trim();
-        parseInput(text);
-      }
-      reader.readAsText(file);
-    });
+```
+document.getElementById('csvFile').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result.trim();
+    parseInput(text);
+  }
+  reader.readAsText(file);
+});
 
-    function parseInput(text) {
-      flashcards = text.split('\n').map(line => {
-        const [term, def] = line.split(',');
-        return { term: term.trim(), definition: def.trim(), marked: false };
-      });
-      currentIndex = 0;
-      showCard();
-    }
+function parseInput(text) {
+  flashcards = text.split('\n').map(line => {
+    const [term, def] = line.split(',');
+    return { term: term.trim(), definition: def.trim(), marked: false };
+  });
+  currentIndex = 0;
+  showCard();
+}
 
-    function loadFlashcards() {
-      const input = document.getElementById('inputArea').value.trim();
-      parseInput(input);
-    }
+function loadFlashcards() {
+  const input = document.getElementById('inputArea').value.trim();
+  parseInput(input);
+}
 
-    function showCard() {
-      if (flashcards.length === 0) return;
-      const card = flashcards[currentIndex];
-      const content = isShowing === 'definition' ? card.definition : card.term;
-      const star = markedSet.has(currentIndex) ? '⭐' : '☆';
-      const markClass = markedSet.has(currentIndex) ? 'marked' : '';
-      const html = `
-        <div onclick="flipCard()">${content}</div>
-        <span class="star" onclick="event.stopPropagation(); toggleMark(${currentIndex})">${star}</span>
-      `;
-      const el = document.getElementById('flashcard');
-      el.innerHTML = html;
-      el.className = `flashcard ${markClass}`;
-      el.classList.remove('hidden');
-    }
+function showCard() {
+  if (flashcards.length === 0) return;
+  const card = flashcards[currentIndex];
+  const content = isShowing === 'definition' ? card.definition : card.term;
+  const star = markedSet.has(currentIndex) ? '⭐' : '☆';
+  const markClass = markedSet.has(currentIndex) ? 'marked' : '';
+  const html = `
+    <div onclick="flipCard()">${content}</div>
+    <span class="star" onclick="event.stopPropagation(); toggleMark(${currentIndex})">${star}</span>
+  `;
+  const el = document.getElementById('flashcard');
+  el.innerHTML = html;
+  el.className = `flashcard ${markClass}`;
+  el.classList.remove('hidden');
+  const counter = document.getElementById('cardCounter');
+  counter.textContent = `Card ${currentIndex + 1} of ${flashcards.length}`;
+}
+}
 
-    function flipCard() {
-      isShowing = isShowing === 'definition' ? 'term' : 'definition';
-      showCard();
-    }
+function flipCard() {
+  isShowing = isShowing === 'definition' ? 'term' : 'definition';
+  showCard();
+}
 
-    function toggleSide() {
-      isShowing = isShowing === 'definition' ? 'term' : 'definition';
-      showCard();
-    }
+function toggleSide() {
+  isShowing = isShowing === 'definition' ? 'term' : 'definition';
+  showCard();
+}
 
-    function shuffleDeck() {
-      for (let i = flashcards.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [flashcards[i], flashcards[j]] = [flashcards[j], flashcards[i]];
-      }
-      currentIndex = 0;
-      showCard();
-    }
+function shuffleDeck() {
+  for (let i = flashcards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [flashcards[i], flashcards[j]] = [flashcards[j], flashcards[i]];
+  }
+  currentIndex = 0;
+  showCard();
+}
 
-    function toggleMark(index) {
-      if (markedSet.has(index)) {
-        markedSet.delete(index);
-      } else {
-        markedSet.add(index);
-      }
-      showCard();
-    }
+function toggleMark(index) {
+  if (markedSet.has(index)) {
+    markedSet.delete(index);
+  } else {
+    markedSet.add(index);
+  }
+  showCard();
+}
 
-    function nextCard() {
-      let nextIndexes = [...Array(flashcards.length).keys()];
-      if (markedSet.size > 0 && Math.random() < 0.5) {
-        nextIndexes = [...markedSet];
-      }
-      currentIndex = nextIndexes[Math.floor(Math.random() * nextIndexes.length)];
-      showCard();
-    }
+function nextCard() {
+  if (flashcards.length === 0) return;
+  historyStack.push(currentIndex);
+  const markedArray = [...markedSet];
+  if (markedArray.length > 0 && Math.random() < 0.5) {
+    currentIndex = markedArray[Math.floor(Math.random() * markedArray.length)];
+  } else {
+    currentIndex = (currentIndex + 1) % flashcards.length;
+  }
+  showCard();
+}
 
-    // Optional: advance to next card on right arrow
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'ArrowRight') nextCard();
-      if (e.key === ' ') flipCard();
-    });
-  </script>
+function prevCard() {
+  if (historyStack.length > 0) {
+    currentIndex = historyStack.pop();
+    showCard();
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') nextCard();
+  if (e.key === 'ArrowLeft') prevCard();
+  if (e.key === ' ') flipCard();
+});
+
+function resetSession() {
+```
+
+if (!confirm('Are you sure you want to reset the session? All progress will be lost.')) return;
+flashcards = \[];
+historyStack = \[];
+currentIndex = 0;
+markedSet = new Set();
+document.getElementById('flashcard').classList.add('hidden');
+document.getElementById('cardCounter').textContent = '';
+document.getElementById('inputArea').value = '';
+}
+if (e.key === 'ArrowLeft') prevCard();
+if (e.key === ' ') flipCard();
+});
+function generateShareableLink() {
+const input = document.getElementById('inputArea').value.trim();
+if (!input) {
+alert('Please enter or load some flashcards first.');
+return;
+}
+const encoded = encodeURIComponent(btoa(input));
+const shareURL = `${location.origin}${location.pathname}?data=${encoded}`;
+navigator.clipboard.writeText(shareURL).then(() => {
+alert('Shareable link copied to clipboard!');
+});
+}
+
+window\.addEventListener('DOMContentLoaded', () => {
+const params = new URLSearchParams(window\.location.search);
+if (params.has('data')) {
+try {
+const decoded = atob(decodeURIComponent(params.get('data')));
+document.getElementById('inputArea').value = decoded;
+parseInput(decoded);
+} catch (e) {
+console.error('Invalid data in URL');
+}
+}
+}); </script>
+
 </body>
 </html>
+Update with shareable link feature
