@@ -1,24 +1,108 @@
-<p><strong>How to use:</strong><br>
-&bull; To share your flashcard set, click "Share This Set" — the app will copy a special URL to your clipboard. Send that link to students so they can open the app with the set already loaded!<br><br>
-&bull; Click the flashcard to flip between term and definition<br>
-&bull; Mark difficult cards by clicking the star<br>
-&bull; <kbd>→</kbd> Next card &nbsp;&nbsp;&bull; <kbd>←</kbd> Previous card &nbsp;&nbsp;&bull; <kbd>Spacebar</kbd> Flip card</p>
+<!DOCTYPE html>
 
-<p><strong>Keyboard shortcuts:</strong><br>
-&bull; <kbd>→</kbd> Next card &nbsp;&nbsp;&bull; <kbd>←</kbd> Previous card &nbsp;&nbsp;&bull; <kbd>Spacebar</kbd> Flip card</p>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vocab Flashcards</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f4f9;
+      color: #333;
+      line-height: 1.6;
+      padding: 2em;
+      max-width: 800px;
+      margin: auto;
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 1em;
+      font-size: 1em;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .flashcard {
+      border-radius: 10px;
+      background: white;
+      border: 2px solid #555;
+      padding: 2em;
+      text-align: center;
+      font-size: 1.5em;
+      margin: 1em 0;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .controls, .nav-buttons {
+      margin-top: 1em;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .controls button, .nav-buttons button {
+      padding: 0.5em 1em;
+      font-size: 1em;
+      background: #007acc;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .controls button:hover, .nav-buttons button:hover {
+      background: #005fa3;
+    }
+    .marked {
+      background-color: #fff3cd;
+      border-color: #ffa500;
+    }
+    .hidden {
+      display: none;
+    }
+    .star {
+      cursor: pointer;
+      font-size: 1.5em;
+      color: gold;
+      margin-left: 10px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .marked-indicator {
+      font-size: 0.9em;
+      color: #cc0000;
+      margin-top: 0.5em;
+      display: block;
+    }
+    #modeStatus {
+      margin-top: 0.5em;
+      font-weight: bold;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Vocabulary Flashcards</h1>
+  <p><strong>How to use:</strong><br>
+  &bull; To share your flashcard set, click "Share This Set" — the app will copy a special URL to your clipboard. Send that link to students so they can open the app with the set already loaded!<br>
+  &bull; Click the flashcard to flip between term and definition<br>
+  &bull; Mark difficult cards by clicking the star<br>
+  &bull; <kbd>→</kbd> Next card &nbsp;&nbsp;&bull; <kbd>←</kbd> Previous card &nbsp;&nbsp;&bull; <kbd>Spacebar</kbd> Flip card</p>
 
-<textarea id="inputArea" placeholder="run,to move quickly on foot"></textarea>
+  <textarea id="inputArea" placeholder="run,to move quickly on foot"></textarea>
 
   <input type="file" id="csvFile" accept=".csv" />
   <br><br>
   <button onclick="loadFlashcards()">Start Flashcards</button>
   <div class="controls">
+    <button onclick="toggleMarkedMode()">Review Marked Only</button>
     <button onclick="generateShareableLink()">Share This Set</button>
     <button onclick="toggleSide()">Toggle Term/Definition</button>
     <button onclick="shuffleDeck()">Shuffle Deck</button>
   </div>
   <div id="flashcard" class="flashcard hidden" onclick="flipCard()"></div>
   <p id="cardCounter"></p>
+  <p id="modeStatus" style="font-style: italic; color: #444;"></p>
   <div class="nav-buttons">
     <button onclick="resetSession()">🔄 Reset</button>
     <button onclick="prevCard()">&larr; Previous</button>
@@ -26,10 +110,11 @@
   </div>
   <script>
     let flashcards = [];
-let historyStack = [];
+    let historyStack = [];
     let currentIndex = 0;
     let isShowing = 'definition';
     let markedSet = new Set();
+    let reviewMarkedOnly = false;
 
 ```
 document.getElementById('csvFile').addEventListener('change', function(e) {
@@ -63,7 +148,7 @@ function showCard() {
   const star = markedSet.has(currentIndex) ? '⭐' : '☆';
   const markClass = markedSet.has(currentIndex) ? 'marked' : '';
   const html = `
-    <div onclick="flipCard()">${content}</div>
+    <div onclick="flipCard()">${content}${markedSet.has(currentIndex) ? '<span class="marked-indicator">(Marked)</span>' : ''}</div>
     <span class="star" onclick="event.stopPropagation(); toggleMark(${currentIndex})">${star}</span>
   `;
   const el = document.getElementById('flashcard');
@@ -72,7 +157,6 @@ function showCard() {
   el.classList.remove('hidden');
   const counter = document.getElementById('cardCounter');
   counter.textContent = `Card ${currentIndex + 1} of ${flashcards.length}`;
-}
 }
 
 function flipCard() {
@@ -107,11 +191,10 @@ function nextCard() {
   if (flashcards.length === 0) return;
   historyStack.push(currentIndex);
   const markedArray = [...markedSet];
-  if (markedArray.length > 0 && Math.random() < 0.5) {
-    currentIndex = markedArray[Math.floor(Math.random() * markedArray.length)];
-  } else {
-    currentIndex = (currentIndex + 1) % flashcards.length;
-  }
+  const availableIndexes = reviewMarkedOnly && markedArray.length > 0
+    ? markedArray
+    : [...Array(flashcards.length).keys()];
+  currentIndex = availableIndexes[Math.floor(Math.random() * availableIndexes.length)];
   showCard();
 }
 
@@ -129,45 +212,50 @@ document.addEventListener('keydown', function(e) {
 });
 
 function resetSession() {
+  if (!confirm('Are you sure you want to reset the session? All progress will be lost.')) return;
+  flashcards = [];
+  historyStack = [];
+  currentIndex = 0;
+  markedSet = new Set();
+  document.getElementById('flashcard').classList.add('hidden');
+  document.getElementById('cardCounter').textContent = '';
+  document.getElementById('inputArea').value = '';
+}
+
+function generateShareableLink() {
+  const input = document.getElementById('inputArea').value.trim();
+  if (!input) {
+    alert('Please enter or load some flashcards first.');
+    return;
+  }
+  const encoded = encodeURIComponent(btoa(input));
+  const shareURL = `${location.origin}${location.pathname}?data=${encoded}`;
+  navigator.clipboard.writeText(shareURL).then(() => {
+    alert('Shareable link copied to clipboard!');
+  });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('data')) {
+    try {
+      const decoded = atob(decodeURIComponent(params.get('data')));
+      document.getElementById('inputArea').value = decoded;
+      parseInput(decoded);
+    } catch (e) {
+      console.error('Invalid data in URL');
+    }
+  }
+});
+
+function toggleMarkedMode() {
+  reviewMarkedOnly = !reviewMarkedOnly;
+  const modeStatus = document.getElementById('modeStatus');
+  modeStatus.textContent = reviewMarkedOnly ? 'Marked-only review is ON' : 'Marked-only review is OFF';
+  nextCard();
+}
 ```
 
-if (!confirm('Are you sure you want to reset the session? All progress will be lost.')) return;
-flashcards = \[];
-historyStack = \[];
-currentIndex = 0;
-markedSet = new Set();
-document.getElementById('flashcard').classList.add('hidden');
-document.getElementById('cardCounter').textContent = '';
-document.getElementById('inputArea').value = '';
-}
-if (e.key === 'ArrowLeft') prevCard();
-if (e.key === ' ') flipCard();
-});
-function generateShareableLink() {
-const input = document.getElementById('inputArea').value.trim();
-if (!input) {
-alert('Please enter or load some flashcards first.');
-return;
-}
-const encoded = encodeURIComponent(btoa(input));
-const shareURL = `${location.origin}${location.pathname}?data=${encoded}`;
-navigator.clipboard.writeText(shareURL).then(() => {
-alert('Shareable link copied to clipboard!');
-});
-}
-
-window\.addEventListener('DOMContentLoaded', () => {
-const params = new URLSearchParams(window\.location.search);
-if (params.has('data')) {
-try {
-const decoded = atob(decodeURIComponent(params.get('data')));
-document.getElementById('inputArea').value = decoded;
-parseInput(decoded);
-} catch (e) {
-console.error('Invalid data in URL');
-}
-}
-}); </script>
-
+  </script>
 </body>
 </html>
